@@ -36,4 +36,4 @@ Address: 93.184.216.34`
 |29| `sudo usermod -aG devteam student1` | Add user to group | *(no output)* |
 |30| `crontab -l` | List current cron jobs (after adding one) | `*/5 * * * * /home/user/scripts/backup.sh` |
 
-> **Note**: Replace the placeholder outputs with the actual terminal results you capture while performing the lab.
+
