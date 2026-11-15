@@ -1,0 +1,37 @@
+Table 1: SPL Command - Meaning - Example
+
+search | Filter events | index=windows EventCode=4625
+index= | Choose index | index=linux
+sourcetype= | Filter event type | sourcetype=WinEventLog:Security
+earliest/latest | Set time bounds | earliest=-15m latest=now
+fields | Keep/remove fields | | fields _time host user
+table | Display columns | | table _time host user
+stats | Aggregate events | | stats count by user
+timechart | Aggregate over time | | timechart span=5m count
+top | Most common values | | top limit=10 src_ip
+rare | Least common values | | rare limit=10 Image
+sort | Order results | | sort - count
+head | Limit rows | | head 20
+dedup | Remove duplicates | | dedup src_ip
+rename | Rename field | | rename TargetUserName as user
+eval | Create calculated field | | eval risk=if(count>10,"high","normal")
+where | Filter expression | | where failures >= 5
+rex | Extract fields | | rex field=_raw "from (?<src_ip>\\S+)"
+lookup | Enrich from lookup | | lookup asset_inventory ip as src_ip OUTPUT owner
+transaction | Group related events | | transaction user maxspan=5m
+eventstats | Add aggregate to events | | eventstats avg(duration) as avg_duration by host
+
+Table 2: SIEM Alert - Likely Cause - First Check
+
+Repeated failed Windows logons | Password typo, stale service credential, password guessing | Check source IP, target account, logon type and later success.
+SSH authentication failures | Wrong password/key, stale automation, brute force | Check source IP, attempted user, count and auth.log.
+New account created (4720) | Approved onboarding or unauthorized persistence | Check actor, target account, approval and group membership.
+PowerShell execution | Admin script, deployment or suspicious command | Review command line, parent process, user and script source.
+Rare process pair | Software update, new application or suspicious chain | Validate binary path/signature, parent and prevalence.
+FIM file modified | Legitimate edit/update or tampering | Check path, hash, user/process and change record.
+Port scan/firewall blocks | Authorized scan or reconnaissance | Verify source, time window, destination ports and adjacent events.
+Wazuh agent disconnected | VM down, network issue or stopped service | Check agent service, manager reachability and last keep-alive.
+High-volume DNS | Application behavior, misconfiguration or tunneling | Check queried domains, process, host and baseline.
+Malware/AV detection | Malicious file, PUA or test sample | Do not execute; preserve hash/path and validate detection.
+Privilege/group change | Admin task or privilege escalation | Check actor, target, approval and surrounding logons.
+Alert burst on one endpoint | Compromise, noisy app or misconfiguration | Build timeline across process, logon, network and FIM.
