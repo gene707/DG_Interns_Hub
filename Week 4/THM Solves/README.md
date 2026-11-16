@@ -260,3 +260,230 @@ THM-Introduction-to-SIEM/
 ## Disclaimer
 
 This writeup documents my learning and lab observations from the TryHackMe room. All practical activity described here was performed in the provided training environment.
+
+
+
+# TryHackMe: Splunk Exploring SPL
+
+> A practical introduction to searching, filtering, and organizing Windows event data with Splunk Search Processing Language (SPL).
+
+## Room Overview
+
+| Item | Details |
+|---|---|
+| Platform | TryHackMe |
+| Lab | Splunk: Exploring SPL |
+| Main tool | Splunk Search & Reporting |
+| Data source | `windowslogs` index |
+| Focus | SPL syntax, search filters, time ranges, field analysis, and result organization |
+| Status | Completed lab exercises documented with screenshots |
+
+## Objective
+
+The goal of this lab was to become comfortable navigating Splunk and using SPL to investigate Windows log data. Instead of relying only on the graphical interface, I practiced narrowing down events with field filters, checking event counts, inspecting source IP values, and arranging results into a more useful table.
+
+## 1. Getting Familiar with Search History
+
+Splunk's **Search History** keeps a record of previously executed searches. This is useful when revisiting an investigation, checking how a result was produced, or reusing a query without typing it again.
+
+One of the entries visible in the history was:
+
+```spl
+index=windowslogs | chart count(EventCode) by Image
+```
+
+This search works with events in the `windowslogs` index and creates a chart showing the number of events grouped by `Image` and `EventCode`.
+
+![Splunk search history](images/01-search-history.jpg)
+
+## 2. Inspecting Source IP Values
+
+A useful starting point when exploring an unfamiliar dataset is to inspect the fields Splunk has extracted. Selecting the `SourceIp` field opens its field summary, where the values and their event counts can be reviewed.
+
+In the screenshot, the most frequent source IP is:
+
+- `172.90.12.11` with 53 events (61.628%).
+- `172.18.38.5` with 15 events (17.442%).
+
+The remaining values include IPv6 addresses, the IPv4 loopback address, and a multicast address. These values should be interpreted in the context of the dataset rather than automatically treated as malicious.
+
+![Source IP field summary](images/02-source-ip-top-values.jpg)
+
+A second field summary, after applying a narrower search, shows two source IP values:
+
+- `172.90.12.11`: 17 events (89.474%).
+- `172.18.38.5`: 2 events (10.526%).
+
+This is a reminder that field statistics depend on the current search and time range. A value that is most common in one result set may have a different count after filters are applied.
+
+![Filtered source IP field summary](images/08-filtered-source-ip-values.jpg)
+
+## 3. Using the Time Range Picker
+
+The time picker controls which events Splunk includes in a search. A query can be correct but still return an unexpected result if the selected time range does not cover the relevant events.
+
+For this exercise, I used a custom **Date & Time Range**:
+
+- Start: `04/15/2022 08:05:00.000`
+- End: `04/15/2022 08:06:00.000`
+
+After applying the range, the search returned **134 events** from the `windowslogs` index.
+
+```spl
+index="windowslogs"
+```
+
+![Custom time range selection](images/04-custom-time-range.jpg)
+
+![134 events returned for the selected time window](images/03-time-window-event-count.jpg)
+
+## 4. Filtering Events with Field Conditions
+
+SPL allows a search to be narrowed using field-value conditions. The following examples are taken from the lab screenshots.
+
+### 4.1 Filter by Event ID and User
+
+```spl
+index="windowslogs" EventID="1" AND User=*James*
+```
+
+This query looks for events in the `windowslogs` index where `EventID` is `1` and the `User` field matches the text `James`.
+
+<badge color="success">4 events returned</badge>
+
+![Event ID and user filter](images/05-eventid-user-filter.jpg)
+
+### 4.2 Filter by Destination IP and Port
+
+```spl
+index="windowslogs" DestinationIp="172.18.39.6" AND DestinationPort="135"
+```
+
+This search narrows the results to events associated with the specified destination IP address and destination port.
+
+<badge color="success">4 events returned</badge>
+
+![Destination IP and port filter](images/06-destination-ip-port-filter.jpg)
+
+### 4.3 Filter by Hostname and Destination IP
+
+```spl
+index="windowslogs" Hostname="Salena.Adam" DestinationIp="172.18.38.5"
+```
+
+This query combines a host filter with a destination IP filter. Combining fields helps reduce unrelated events and focus the investigation on a particular system and its recorded communication.
+
+![Hostname and destination IP filter](images/07-hostname-destination-filter.jpg)
+
+## 5. Understanding Keyword Searches and Wildcards
+
+A keyword search can be used to find events containing a particular term.
+
+The screenshot shows this search:
+
+```spl
+index="windowslogs" cyber
+```
+
+It returned **0 events** in the selected search context. A zero-result search does not necessarily mean the dataset is empty. It means the search term did not match any events under the current search conditions and time range.
+
+![Keyword search returning zero events](images/09-keyword-search-no-results.jpg)
+
+Wildcards can broaden a search when the exact value is not known. For example, `*` can represent variable characters in a field value. Wildcards should be used carefully because broad matching can increase the number of returned events and make results harder to review.
+
+## 6. Organizing Results with SPL Commands
+
+Splunk's pipe character (`|`) passes the output of one command into the next. This makes it possible to build a search in stages.
+
+The following search is visible in the lab evidence:
+
+```spl
+index="windowslogs" | table _time EventID Hostname SourceName | dedup Hostname | reverse
+```
+
+The search performs several operations:
+
+1. `index="windowslogs"` selects events from the Windows logs index.
+2. `table _time EventID Hostname SourceName` displays only the selected fields.
+3. `dedup Hostname` removes later results with duplicate hostname values, keeping one result per hostname.
+4. `reverse` reverses the order of the resulting events.
+
+The screenshot shows **12,256 events** before the displayed statistics view and includes these visible rows:
+
+| Time | Event ID | Hostname | Source |
+|---|---:|---|---|
+| `2022-04-15 08:06:38` | 3 | `Salena.Adam` | `Microsoft-Windows-Sysmon` |
+| `2022-07-14 23:37:59` | 5156 | `James.browne` | `Microsoft-Windows-Security-Auditing` |
+| `2022-07-14 23:37:59` | 10 | `Micheal.Beaven` | `Microsoft-Windows-Sysmon` |
+
+![Table, dedup, and reverse search results](images/10-table-dedup-reverse-results.jpg)
+
+### SPL commands covered in this workflow
+
+| Command / feature | Purpose |
+|---|---|
+| `table` | Displays selected fields in a tabular result |
+| `dedup` | Removes duplicate results based on one or more fields |
+| `reverse` | Reverses the order of the results |
+| `AND` | Requires both search conditions to match |
+| `*` | Wildcard used for flexible matching |
+| Time range picker | Limits the events included in a search |
+
+## 7. Investigation Notes
+
+A few practical points stood out during the exercise:
+
+- **Check the time range first.** A search may return zero events simply because the relevant activity falls outside the selected window.
+- **Start broad, then narrow down.** Begin with an index search and add field conditions as the investigation becomes more specific.
+- **Use field summaries to understand the dataset.** Top values and event counts can help identify common sources and unusual values worth checking.
+- **Do not assume an IP is malicious because it appears frequently.** Validate its role and inspect the events associated with it.
+- **Use pipes to make results readable.** Commands such as `table` and `dedup` help turn large event sets into a smaller view that is easier to inspect.
+- **Keep the original query in mind.** Each command in a pipeline changes the results passed to the next command.
+
+## 8. Key Takeaways
+
+This lab provided hands-on practice with the SPL workflow used during log analysis:
+
+1. Locate relevant data by selecting the correct index.
+2. Review previous searches using Search History.
+3. Set a suitable time window before interpreting event counts.
+4. Filter events using fields such as `EventID`, `User`, `Hostname`, `DestinationIp`, and `DestinationPort`.
+5. Use wildcard matching when searching for values that may contain additional characters.
+6. Inspect field summaries to understand which values occur most frequently.
+7. Use pipeline commands to structure and reduce search results.
+
+## Conclusion
+
+The main lesson from this exercise is that effective Splunk analysis is not just about writing a query. It also requires choosing the correct time range, understanding the available fields, and refining the results until the relevant events become clear.
+
+Practicing these SPL basics builds a foundation for more advanced SIEM work, including event correlation, threat hunting, and detection engineering.
+
+## References
+
+- TryHackMe: [Splunk: Exploring SPL](https://tryhackme.com/)
+- Reference article for topic coverage: [Splunk Exploring SPL - TryHackMe](https://medium.com/@oyugimike254/splunk-exploring-spl-tryhackme-2aee166fd81f)
+
+The explanations and report structure here are independently written. The screenshots are included as evidence from my lab work.
+
+## Repository Structure
+
+```text
+THM-Splunk-Exploring-SPL/
+├── README.md
+└── images/
+    ├── 01-search-history.jpg
+    ├── 02-source-ip-top-values.jpg
+    ├── 03-time-window-event-count.jpg
+    ├── 04-custom-time-range.jpg
+    ├── 05-eventid-user-filter.jpg
+    ├── 06-destination-ip-port-filter.jpg
+    ├── 07-hostname-destination-filter.jpg
+    ├── 08-filtered-source-ip-values.jpg
+    ├── 09-keyword-search-no-results.jpg
+    └── 10-table-dedup-reverse-results.jpg
+```
+
+## Disclaimer
+
+This writeup documents activity in a TryHackMe training environment. It is intended for educational use and personal lab documentation.
+
